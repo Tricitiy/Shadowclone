@@ -257,17 +257,3 @@ spawn(function()
       wait(0.5)
    end
 end)
-
--- GUI Toggles (aggiungi questi dopo Window)
-Window:CreateTab("Visuals"):CreateToggle({Name = "ESP", CurrentValue = false, Callback = function(v) getgenv().ESPEnabled = v end})
-Window:CreateTab("Combat"):CreateToggle({Name = "Aimbot", CurrentValue = false, Callback = function(v) getgenv().AimbotEnabled = v end})
-Window:CreateTab("Combat"):CreateToggle({Name = "Kill Aura", CurrentValue = false, Callback = function(v) getgenv().KillAuraEnabled = v end})
-Window:CreateTab("Autofarm"):CreateToggle({Name = "Coin Farm", CurrentValue = false, Callback = function(v) getgenv().CoinFarmEnabled = v end})
-Window:CreateTab("Autofarm"):CreateToggle({Name = "Grab Gun", CurrentValue = false, Callback = function(v) getgenv().GrabGunEnabled = v end})
-Window:CreateTab("Player"):CreateToggle({Name = "God Mode", CurrentValue = false, Callback = function(v) getgenv().GodModeEnabled = v end})
-Window:CreateTab("Player"):CreateToggle({Name = "Fly", CurrentValue = false, Callback = function(v) toggleFly(v) end})
-Window:CreateTab("Player"):CreateToggle({Name = "Speed", CurrentValue = false, Callback = function(v) getgenv().SpeedEnabled = v end})
-Window:CreateTab("Player"):CreateSlider({Name = "Speed Value", Range = {16, 200}, Increment = 1, CurrentValue = 50, Callback = function(v) getgenv().SpeedValue = v end})
-
-print("MM2 Full Cheat by Harun Loaded! Press Right Ctrl for Menu")
-Rayfield:Notify({Title = "Loaded!", Content = "By Harun - Right Ctrl to open", Duration = 6})
