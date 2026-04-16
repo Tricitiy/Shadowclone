@@ -1,14 +1,12 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
-local LocalPlayer = Players.LocalPlayer
+local Players      = game:GetService("Players")
+local RunService   = game:GetService("RunService")
+local TweenService = game:GetService("TweenService") -- missing in your original!
+local LocalPlayer  = Players.LocalPlayer
 
 getgenv().CoinFarmEnabled = true
+getgenv().TweenSpeed      = 23
 
--- CONFIG
-getgenv().TweenSpeed = 23 -- Adjust speed (higher = faster)
-
--- NOCLIP HANDLER
+-- Noclip handler
 RunService.Stepped:Connect(function()
     if getgenv().CoinFarmEnabled and LocalPlayer.Character then
         for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
@@ -19,34 +17,38 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- TWEEN FUNCTION
+-- Tween function
 local function tweenTo(targetCFrame)
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    
-    local root = char.HumanoidRootPart
+
+    local root     = char.HumanoidRootPart
     local distance = (root.Position - targetCFrame.Position).Magnitude
     local duration = distance / getgenv().TweenSpeed
-    
-    local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(root, info, {CFrame = targetCFrame})
-    
+
+    local tween = TweenService:Create(
+        root,
+        TweenInfo.new(duration, Enum.EasingStyle.Linear),
+        {CFrame = targetCFrame}
+    )
     tween:Play()
     tween.Completed:Wait()
 end
 
--- COIN FARM LOOP
+-- Coin farm loop
 task.spawn(function()
     while true do
         task.wait(0.1)
         if getgenv().CoinFarmEnabled then
             pcall(function()
                 for _, v in pairs(workspace:GetDescendants()) do
-                    -- Only target the coin if it still exists and the farm is enabled
-                    if getgenv().CoinFarmEnabled and v.Name == "Coin" and v:IsA("BasePart") then
-                        -- Tween to 3 studs above the coin
-                        tweenTo(v.CFrame * CFrame.new(0, 3, 0))
-                        task.wait(0.1) 
+                    if getgenv().CoinFarmEnabled
+                        and v.Name == "Coin"
+                        and v:IsA("BasePart")
+                        and v.Parent -- coin still exists
+                    then
+                        tweenTo(v.CFrame) -- go directly to coin, not above it
+                        task.wait(0.1)
                     end
                 end
             end)
