@@ -1,28 +1,12 @@
--- MM2 FULL CHEAT by Harun (2026) - Rayfield UI
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local Window = Rayfield:CreateWindow({
-   Name = "MM2 Cheat by Harun",
-   LoadingTitle = "Loading Autofarm...",
-   LoadingSubtitle = "By Harun",
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = "MM2Harun",
-      FileName = "MM2Config"
-   },
-   Discord = { Enabled = false },
-   KeySystem = false
-})
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
 -- Globals
-getgenv().ESPEnabled = false
+getgenv().ESPEnabled = true
 getgenv().AimbotEnabled = false
-getgenv().CoinFarmEnabled = false
+getgenv().CoinFarmEnabled = true
 getgenv().GrabGunEnabled = false
 getgenv().GrabKnifeEnabled = false
 getgenv().KillAuraEnabled = false
