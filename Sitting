@@ -5,41 +5,57 @@ local LocalPlayer  = Players.LocalPlayer
 
 getgenv().CoinFarmEnabled = true
 getgenv().TweenSpeed      = 23
+getgenv().MaxDistance     = 300 -- THE LIMIT
 
 local KEYWORDS = {"coin", "gold", "token", "gem"}
+local ValidTargets = {}
 
--- Check if name matches keywords
-local function isTarget(part)
-    if not (part:IsA("BasePart") and part.Parent) then return false end
-    local lowerName = string.lower(part.Name)
-    for _, word in ipairs(KEYWORDS) do
-        if string.find(lowerName, word) then return true end
+local function checkName(name)
+    local ln = string.lower(name)
+    for _, kw in ipairs(KEYWORDS) do
+        if string.find(ln, kw) then return true end
     end
     return false
 end
 
--- Get the closest valid part
+local function setupCache()
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") and checkName(v.Name) then
+            table.insert(ValidTargets, v)
+        end
+    end
+end
+
+workspace.DescendantAdded:Connect(function(v)
+    if v:IsA("BasePart") and checkName(v.Name) then
+        table.insert(ValidTargets, v)
+    end
+end)
+
 local function getClosestTarget()
     local closestPart = nil
-    local shortestDistance = math.huge
+    local shortestDistance = getgenv().MaxDistance -- Start at 300 so nothing further is considered
+    
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
-    
     local rootPos = char.HumanoidRootPart.Position
 
-    for _, v in pairs(workspace:GetDescendants()) do
-        if isTarget(v) then
+    for i = #ValidTargets, 1, -1 do
+        local v = ValidTargets[i]
+        if v and v.Parent then
             local dist = (v.Position - rootPos).Magnitude
+            -- Only pick it if it's the closest AND under the 300 stud limit
             if dist < shortestDistance then
                 shortestDistance = dist
                 closestPart = v
             end
+        else
+            table.remove(ValidTargets, i)
         end
     end
     return closestPart
 end
 
--- Noclip
 RunService.Stepped:Connect(function()
     if getgenv().CoinFarmEnabled and LocalPlayer.Character then
         for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
@@ -48,34 +64,26 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Tween
 local function tweenTo(targetCFrame)
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-
     local root = char.HumanoidRootPart
-    local distance = (root.Position - targetCFrame.Position).Magnitude
-    local duration = distance / getgenv().TweenSpeed
+    local duration = (root.Position - targetCFrame.Position).Magnitude / getgenv().TweenSpeed
 
-    local tween = TweenService:Create(
-        root,
-        TweenInfo.new(duration, Enum.EasingStyle.Linear),
-        {CFrame = targetCFrame}
-    )
+    local tween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
     tween:Play()
     tween.Completed:Wait()
 end
 
--- Nearest Farm Loop
+setupCache()
+
 task.spawn(function()
     while true do
         task.wait(0.1)
         if getgenv().CoinFarmEnabled then
             local target = getClosestTarget()
             if target then
-                pcall(function()
-                    tweenTo(target.CFrame)
-                end)
+                pcall(function() tweenTo(target.CFrame) end)
             end
         end
     end
