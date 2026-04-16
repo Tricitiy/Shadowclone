@@ -145,21 +145,57 @@ local updateAimbot = function()
 end
 Connections.Aimbot = RunService.RenderStepped:Connect(updateAimbot)
 
--- Coin Farm
-spawn(function()
-   while true do
-      if getgenv().CoinFarmEnabled then
-         pcall(function()
-            for _, v in pairs(workspace:GetDescendants()) do
-               if v.Name == "Coin" and v:IsA("BasePart") then
-                  LocalPlayer.Character.HumanoidRootPart.CFrame = v.CFrame * CFrame.new(0, 3, 0)
-                  wait(0.1)
-               end
+
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- CONFIG
+getgenv().TweenSpeed = 50 -- Adjust speed (higher = faster)
+
+-- NOCLIP HANDLER
+RunService.Stepped:Connect(function()
+    if getgenv().CoinFarmEnabled and LocalPlayer.Character then
+        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
             end
-         end)
-      end
-      wait(0.2)
-   end
+        end
+    end
+end)
+
+-- TWEEN FUNCTION
+local function tweenTo(targetCFrame)
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    
+    local root = char.HumanoidRootPart
+    local distance = (root.Position - targetCFrame.Position).Magnitude
+    local duration = distance / getgenv().TweenSpeed
+    
+    local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(root, info, {CFrame = targetCFrame})
+    
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+-- COIN FARM LOOP
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if getgenv().CoinFarmEnabled then
+            pcall(function()
+                for _, v in pairs(workspace:GetDescendants()) do
+                    -- Only target the coin if it still exists and the farm is enabled
+                    if getgenv().CoinFarmEnabled and v.Name == "Coin" and v:IsA("BasePart") then
+                        -- Tween to 3 studs above the coin
+                        tweenTo(v.CFrame * CFrame.new(0, 3, 0))
+                        task.wait(0.1) 
+                    end
+                end
+            end)
+        end
+    end
 end)
 
 -- Grab Gun/Knife (simple loop)
