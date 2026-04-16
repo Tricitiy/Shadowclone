@@ -66,35 +66,46 @@ local function getClosestTarget()
     return closest
 end
 
--- 5. Noclip
-RunService.Stepped:Connect(function()
-    if getgenv().CoinFarmEnabled and LocalPlayer.Character then
-        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
+-- noclip
+LocalPlayer.CharacterAdded:Connect(function(char)
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then part.CanCollide = false end
     end
+    char.DescendantAdded:Connect(function(part)
+        if part:IsA("BasePart") then part.CanCollide = false end
+    end)
 end)
 
--- 6. Tween
+local currentTween = nil
+
 local function tweenTo(targetCFrame)
-    local root = LocalPlayer.Character.HumanoidRootPart
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    if currentTween then currentTween:Cancel() end
+
     local d = (root.Position - targetCFrame.Position).Magnitude
-    local t = TweenService:Create(root, TweenInfo.new(d/getgenv().TweenSpeed, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-    t:Play()
-    t.Completed:Wait()
+    currentTween = TweenService:Create(
+        root,
+        TweenInfo.new(d / getgenv().TweenSpeed, Enum.EasingStyle.Linear),
+        {CFrame = targetCFrame}
+    )
+    currentTween:Play()
 end
 
 -- Initial scan
 refreshCache()
 
--- Main Execution
+-- Slightly better loop
 task.spawn(function()
     while true do
         task.wait(0.1)
         if getgenv().CoinFarmEnabled then
             local target = getClosestTarget()
-            if target then
-                pcall(function() tweenTo(target.CFrame) end)
+            if target and target.Parent then  -- double-check still exists
+                pcall(tweenTo, target.CFrame)
             end
         end
     end
