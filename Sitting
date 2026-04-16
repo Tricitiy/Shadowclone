@@ -1,211 +1,253 @@
--- SERVICES
+-- MM2 FULL CHEAT by Harun (2026) - Rayfield UI
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "MM2 Cheat by Harun",
+   LoadingTitle = "Loading Autofarm...",
+   LoadingSubtitle = "By Harun",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "MM2Harun",
+      FileName = "MM2Config"
+   },
+   Discord = { Enabled = false },
+   KeySystem = false
+})
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- CONFIG
-getgenv().Config = {
-    Hitbox = {
-        Enabled = true,
-        Size = 15,
-        TeamCheck = true,
-        ShowBox = false
-    },
-    Aimbot = {
-        Enabled = false,
-        FOV = 120,
-        ShowFOV = false,
-        TeamCheck = true,
-        VisibleCheck = true,
-        HitChance = 82,
-        Prediction = true,
-        PredAmount = 0.135,
-        Jitter = 0.8
-    }
-}
+-- Globals
+getgenv().ESPEnabled = false
+getgenv().AimbotEnabled = false
+getgenv().CoinFarmEnabled = false
+getgenv().GrabGunEnabled = false
+getgenv().GrabKnifeEnabled = false
+getgenv().KillAuraEnabled = false
+getgenv().GodModeEnabled = false
+getgenv().FlyEnabled = false
+getgenv().SpeedEnabled = false
+getgenv().SpeedValue = 50
 
-local Config = getgenv().Config
+local ESPs = {}
+local Connections = {}
 
--- R6 / R15
-local function getTorso(char)
-    return char:FindFirstChild("UpperTorso")
-        or char:FindFirstChild("LowerTorso")
-        or char:FindFirstChild("Torso")
+-- Get Role Function
+local function getRole(plr)
+   local char = plr.Character
+   local backpack = plr.Backpack
+   if char:FindFirstChild("Knife") or backpack:FindFirstChild("Knife") then return "Murderer" end
+   if char:FindFirstChild("Gun") or backpack:FindFirstChild("Gun") then return "Sheriff" end
+   return "Innocent"
 end
 
--- HITBOX
--- HITBOX LOGIC
-local function getTorso(char)
-    return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+-- ESP System
+local function createESP(plr)
+   if plr == LocalPlayer then return end
+   local box = Drawing.new("Square")
+   box.Thickness = 2
+   box.Filled = false
+   box.Transparency = 1
+   box.Visible = false
+   local name = Drawing.new("Text")
+   name.Size = 14
+   name.Center = true
+   name.Outline = true
+   name.Font = 2
+   name.Visible = false
+   local distText = Drawing.new("Text")
+   distText.Size = 12
+   distText.Center = true
+   distText.Outline = true
+   distText.Font = 2
+   distText.Visible = false
+   ESPs[plr] = {box = box, name = name, dist = distText}
 end
 
-local function createHitbox(char)
-    local torso = getTorso(char)
-    if not torso then return end
-
-    local plr = Players:GetPlayerFromCharacter(char)
-    if not plr then return end
-    if Config.Hitbox.TeamCheck and plr.Team == LocalPlayer.Team then return end
-
-    local hb = char:FindFirstChild("SilentHitbox")
-    local size = Config.Hitbox.Size + math.random(-1,1)
-
-    if hb then
-        hb.Size = Vector3.new(size,size,size)
-        return
-    end
-
-    hb = Instance.new("Part")
-    hb.Name = "SilentHitbox"
-    hb.Size = Vector3.new(size,size,size)
-    hb.CFrame = torso.CFrame
-    hb.Transparency = 1
-    hb.CanCollide = false
-    hb.CanTouch = false
-    hb.CanQuery = true
-    hb.Massless = true
-    hb.Parent = char
-
-    local weld = Instance.new("WeldConstraint")
-    weld.Part0 = hb
-    weld.Part1 = torso
-    weld.Parent = hb
-
-    if Config.Hitbox.ShowBox then
-        local box = Instance.new("SelectionBox")
-        box.Adornee = hb
-        box.Color3 = Color3.fromRGB(255,0,0)
-        box.LineThickness = 0.05
-        box.Parent = hb
-    end
+local updateESP = function()
+   if not getgenv().ESPEnabled then return end
+   for plr, esp in pairs(ESPs) do
+      if plr.Parent and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Head") then
+         local root = plr.Character.HumanoidRootPart
+         local head = plr.Character.Head
+         local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+         local rootPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+         local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+         if onScreen then
+            local legPos = rootPos.Y + (Camera:WorldToViewportPoint(root.Position - Vector3.new(0,5,0)).Y - rootPos.Y)
+            local size = math.abs(legPos - rootPos.Y)
+            local width = size / 2
+            esp.box.Size = Vector2.new(width * 2, size)
+            esp.box.Position = Vector2.new(rootPos.X - width, rootPos.Y - size / 2)
+            esp.box.Visible = true
+            local role = getRole(plr)
+            local color = role == "Murderer" and Color3.fromRGB(255,0,0) or role == "Sheriff" and Color3.fromRGB(0,100,255) or Color3.fromRGB(0,255,0)
+            esp.box.Color = color
+            local dist = math.floor((LocalPlayer.Character.HumanoidRootPart.Position - root.Position).Magnitude)
+            esp.name.Text = plr.Name .. " [" .. role .. "]"
+            esp.name.Position = Vector2.new(rootPos.X, rootPos.Y - size / 2 - 20)
+            esp.name.Color = color
+            esp.name.Visible = true
+            esp.dist.Text = dist .. "m | " .. math.floor(hum.Health)
+            esp.dist.Position = Vector2.new(rootPos.X, rootPos.Y + size / 2 + 5)
+            esp.dist.Color = Color3.fromRGB(255,255,255)
+            esp.dist.Visible = true
+         else
+            esp.box.Visible = false
+            esp.name.Visible = false
+            esp.dist.Visible = false
+         end
+      else
+         esp.box.Visible = false
+         esp.name.Visible = false
+         esp.dist.Visible = false
+      end
+   end
 end
+Connections.ESP = RunService.RenderStepped:Connect(updateESP)
 
-local function removeHitbox(char)
-    local hb = char:FindFirstChild("SilentHitbox")
-    if hb then hb:Destroy() end
-end
+-- Player Added/Removing
+Players.PlayerAdded:Connect(createESP)
+for _, plr in pairs(Players:GetPlayers()) do createESP(plr) end
+Players.PlayerRemoving:Connect(function(plr)
+   if ESPs[plr] then
+      ESPs[plr].box:Remove()
+      ESPs[plr].name:Remove()
+      ESPs[plr].dist:Remove()
+      ESPs[plr] = nil
+   end
+end)
 
--- KNIFE DETECTION LOGIC
-local KNIFE_KEYWORDS = {"knife", "blade", "dagger", "shiv", "shard", "slash"}
-
-local function isKnifeTool(toolName)
-    local lower = string.lower(toolName)
-    for _, kw in ipairs(KNIFE_KEYWORDS) do
-        if string.find(lower, kw) then return true end
-    end
-    return false
-end
-
-local function hasKnife(player)
-    local char = player.Character
-    if char then
-        for _, item in ipairs(char:GetChildren()) do
-            if item:IsA("Tool") and isKnifeTool(item.Name) then return true end
-        end
-    end
-    local bp = player:FindFirstChild("Backpack")
-    if bp then
-        for _, item in ipairs(bp:GetChildren()) do
-            if item:IsA("Tool") and isKnifeTool(item.Name) then return true end
-        end
-    end
-    return false
-end
-
--- LOOP HITBOX (INTEGRATED)
-task.spawn(function()
-    while true do
-        task.wait(0.35 + math.random()*0.15)
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer and plr.Character then
-                -- Check if enabled AND if the target has a knife
-                if Config.Hitbox.Enabled and hasKnife(plr) then
-                    createHitbox(plr.Character)
-                else
-                    removeHitbox(plr.Character)
-                end
+-- Aimbot
+local updateAimbot = function()
+   if not getgenv().AimbotEnabled then return end
+   local myRole = getRole(LocalPlayer)
+   local closest, dist = nil, math.huge
+   local myPos = LocalPlayer.Character.HumanoidRootPart.Position
+   for _, plr in pairs(Players:GetPlayers()) do
+      if plr \~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+         local role = getRole(plr)
+         if (myRole \~= "Murderer" and role == "Murderer") or (myRole == "Murderer" and role \~= "Murderer") then
+            local targetPos = plr.Character.Head.Position
+            local d = (myPos - targetPos).Magnitude
+            if d < dist then
+               closest = plr
+               dist = d
             end
-        end
-    end
+         end
+      end
+   end
+   if closest and closest.Character and closest.Character:FindFirstChild("Head") then
+      Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, closest.Character.Head.Position)
+   end
+end
+Connections.Aimbot = RunService.RenderStepped:Connect(updateAimbot)
+
+-- Coin Farm
+spawn(function()
+   while true do
+      if getgenv().CoinFarmEnabled then
+         pcall(function()
+            for _, v in pairs(workspace:GetDescendants()) do
+               if v.Name == "Coin" and v:IsA("BasePart") then
+                  LocalPlayer.Character.HumanoidRootPart.CFrame = v.CFrame * CFrame.new(0, 3, 0)
+                  wait(0.1)
+               end
+            end
+         end)
+      end
+      wait(0.2)
+   end
 end)
 
--- VISIBILITY CHECK (FIXED)
-local function isVisible(part)
-    if not Config.Aimbot.VisibleCheck then return true end
-    local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {LocalPlayer.Character}
-    params.FilterType = Enum.RaycastFilterType.Exclude
+-- Grab Gun/Knife (simple loop)
+spawn(function()
+   while true do
+      if getgenv().GrabGunEnabled or getgenv().GrabKnifeEnabled then
+         pcall(function()
+            local tool = workspace:FindFirstChild("Gun") or workspace:FindFirstChild("Knife")
+            if tool and tool:FindFirstChild("Handle") then
+               LocalPlayer.Character.HumanoidRootPart.CFrame = tool.Handle.CFrame
+               wait(0.3)
+            end
+         end)
+      end
+      wait(0.5)
+   end
+end)
 
-    local result = workspace:Raycast(
-        Camera.CFrame.Position,
-        part.Position - Camera.CFrame.Position,
-        params
-    )
+-- Kill Aura
+spawn(function()
+   while getgenv().KillAuraEnabled do
+      for _, plr in pairs(Players:GetPlayers()) do
+         if plr \~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            plr.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 1000, 0) -- fling
+         end
+      end
+      wait(0.1)
+   end
+end)
 
-    return (not result) or result.Instance:IsDescendantOf(part.Parent)
+-- God Mode
+spawn(function()
+   while getgenv().GodModeEnabled do
+      if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+         LocalPlayer.Character.Humanoid.Health = math.huge
+         LocalPlayer.Character.Humanoid.MaxHealth = math.huge
+      end
+      wait(0.5)
+   end
+end)
+
+-- Fly (basic)
+local flying = false
+local function toggleFly(state)
+   flying = state
+   if not LocalPlayer.Character then return end
+   local root = LocalPlayer.Character.HumanoidRootPart
+   local bv = root:FindFirstChild("FlyBV") or Instance.new("BodyVelocity", root)
+   bv.Name = "FlyBV"
+   bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+   bv.Velocity = Vector3.new()
+   if state then
+      spawn(function()
+         while flying do
+            local cam = workspace.CurrentCamera
+            local move = Vector3.new()
+            if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.W) then move = move + cam.CFrame.LookVector end
+            if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.S) then move = move - cam.CFrame.LookVector end
+            if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0,1,0) end
+            if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.LeftShift) then move = move - Vector3.new(0,1,0) end
+            bv.Velocity = move * 50
+            wait()
+         end
+         bv:Destroy()
+      end)
+   end
 end
 
--- SILENT AIM CORE
-local silentPos
-
-RunService.Heartbeat:Connect(function()
-    silentPos = nil
-    if not Config.Aimbot.Enabled then return end
-
-    local mouse = UIS:GetMouseLocation()
-    local closest, dist = nil, Config.Aimbot.FOV
-
-    for _,plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character then
-            if Config.Aimbot.TeamCheck and plr.Team == LocalPlayer.Team then continue end
-            local part = getTorso(plr.Character)
-            if part and isVisible(part) then
-                local pos, on = Camera:WorldToViewportPoint(part.Position)
-                if on then
-                    local mag = (Vector2.new(pos.X,pos.Y) - mouse).Magnitude
-                    if mag < dist then
-                        dist = mag
-                        closest = part
-                    end
-                end
-            end
-        end
-    end
-
-    if closest then
-        local p = closest.Position
-        if Config.Aimbot.Prediction then
-            p += closest.Velocity * (Config.Aimbot.PredAmount + math.random(-15,15)/1000)
-        end
-        local j = Config.Aimbot.Jitter
-        silentPos = p + Vector3.new(
-            math.random(-j,j),
-            math.random(-j,j),
-            math.random(-j,j)
-        )
-    end
+-- Speed
+spawn(function()
+   while true do
+      if getgenv().SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+         LocalPlayer.Character.Humanoid.WalkSpeed = getgenv().SpeedValue
+      end
+      wait(0.5)
+   end
 end)
 
--- RAYCAST HOOK (SAFE)
-local mt = getrawmetatable(game)
-local old = mt.__namecall
-setreadonly(mt,false)
+-- GUI Toggles (aggiungi questi dopo Window)
+Window:CreateTab("Visuals"):CreateToggle({Name = "ESP", CurrentValue = false, Callback = function(v) getgenv().ESPEnabled = v end})
+Window:CreateTab("Combat"):CreateToggle({Name = "Aimbot", CurrentValue = false, Callback = function(v) getgenv().AimbotEnabled = v end})
+Window:CreateTab("Combat"):CreateToggle({Name = "Kill Aura", CurrentValue = false, Callback = function(v) getgenv().KillAuraEnabled = v end})
+Window:CreateTab("Autofarm"):CreateToggle({Name = "Coin Farm", CurrentValue = false, Callback = function(v) getgenv().CoinFarmEnabled = v end})
+Window:CreateTab("Autofarm"):CreateToggle({Name = "Grab Gun", CurrentValue = false, Callback = function(v) getgenv().GrabGunEnabled = v end})
+Window:CreateTab("Player"):CreateToggle({Name = "God Mode", CurrentValue = false, Callback = function(v) getgenv().GodModeEnabled = v end})
+Window:CreateTab("Player"):CreateToggle({Name = "Fly", CurrentValue = false, Callback = function(v) toggleFly(v) end})
+Window:CreateTab("Player"):CreateToggle({Name = "Speed", CurrentValue = false, Callback = function(v) getgenv().SpeedEnabled = v end})
+Window:CreateTab("Player"):CreateSlider({Name = "Speed Value", Range = {16, 200}, Increment = 1, CurrentValue = 50, Callback = function(v) getgenv().SpeedValue = v end})
 
-mt.__namecall = newcclosure(function(self,...)
-    local args = {...}
-    if Config.Aimbot.Enabled
-    and silentPos
-    and self == workspace
-    and getnamecallmethod() == "Raycast"
-    and typeof(args[1]) == "Vector3"
-    and typeof(args[2]) == "Vector3"
-    and math.random(1,100) <= Config.Aimbot.HitChance then
-        args[2] = (silentPos - args[1]).Unit * 2000
-        return old(self, unpack(args))
-    end
-    return old(self,...)
-end)
-
-setreadonly(mt,true)
+print("MM2 Full Cheat by Harun Loaded! Press Right Ctrl for Menu")
+Rayfield:Notify({Title = "Loaded!", Content = "By Harun - Right Ctrl to open", Duration = 6})
