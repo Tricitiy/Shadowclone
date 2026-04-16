@@ -5,57 +5,68 @@ local LocalPlayer  = Players.LocalPlayer
 
 getgenv().CoinFarmEnabled = true
 getgenv().TweenSpeed      = 23
-getgenv().MaxDistance     = 300 -- THE LIMIT
+getgenv().MaxDistance     = 300
 
 local KEYWORDS = {"coin", "gold", "token", "gem"}
-local ValidTargets = {}
+local ItemCache = {}
 
-local function checkName(name)
-    local ln = string.lower(name)
+-- 1. Optimized Name Check
+local function isTarget(name)
+    local ln = name:lower()
     for _, kw in ipairs(KEYWORDS) do
-        if string.find(ln, kw) then return true end
+        if ln:find(kw) then return true end
     end
     return false
 end
 
-local function setupCache()
+-- 2. Fast Cache Refresh (Only runs when necessary)
+local function refreshCache()
+    local newCache = {}
+    -- This is still a heavy check, so we only do it once or when the farm starts
     for _, v in ipairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") and checkName(v.Name) then
-            table.insert(ValidTargets, v)
+        if v:IsA("BasePart") and isTarget(v.Name) then
+            table.insert(newCache, v)
         end
     end
+    ItemCache = newCache
 end
 
+-- 3. Dynamic Cache Update (Watches for new spawns)
 workspace.DescendantAdded:Connect(function(v)
-    if v:IsA("BasePart") and checkName(v.Name) then
-        table.insert(ValidTargets, v)
+    if v:IsA("BasePart") and isTarget(v.Name) then
+        table.insert(ItemCache, v)
     end
 end)
 
+-- 4. The Distance Logic (The optimized part)
 local function getClosestTarget()
-    local closestPart = nil
-    local shortestDistance = getgenv().MaxDistance -- Start at 300 so nothing further is considered
-    
     local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
-    local rootPos = char.HumanoidRootPart.Position
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    
+    local rootPos = root.Position
+    local closest = nil
+    local dist = getgenv().MaxDistance
 
-    for i = #ValidTargets, 1, -1 do
-        local v = ValidTargets[i]
-        if v and v.Parent then
-            local dist = (v.Position - rootPos).Magnitude
-            -- Only pick it if it's the closest AND under the 300 stud limit
-            if dist < shortestDistance then
-                shortestDistance = dist
-                closestPart = v
-            end
+    -- Loop through our pre-filtered table (very fast)
+    for i = #ItemCache, 1, -1 do
+        local item = ItemCache[i]
+        
+        -- If item was deleted/collected, remove from cache and skip
+        if not item or not item.Parent then
+            table.remove(ItemCache, i)
         else
-            table.remove(ValidTargets, i)
+            local d = (item.Position - rootPos).Magnitude
+            if d < dist then
+                dist = d
+                closest = item
+            end
         end
     end
-    return closestPart
+    return closest
 end
 
+-- 5. Noclip
 RunService.Stepped:Connect(function()
     if getgenv().CoinFarmEnabled and LocalPlayer.Character then
         for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
@@ -64,19 +75,19 @@ RunService.Stepped:Connect(function()
     end
 end)
 
+-- 6. Tween
 local function tweenTo(targetCFrame)
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    local root = char.HumanoidRootPart
-    local duration = (root.Position - targetCFrame.Position).Magnitude / getgenv().TweenSpeed
-
-    local tween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-    tween:Play()
-    tween.Completed:Wait()
+    local root = LocalPlayer.Character.HumanoidRootPart
+    local d = (root.Position - targetCFrame.Position).Magnitude
+    local t = TweenService:Create(root, TweenInfo.new(d/getgenv().TweenSpeed, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+    t:Play()
+    t.Completed:Wait()
 end
 
-setupCache()
+-- Initial scan
+refreshCache()
 
+-- Main Execution
 task.spawn(function()
     while true do
         task.wait(0.1)
