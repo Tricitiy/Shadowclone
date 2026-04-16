@@ -1,10 +1,24 @@
 local Players      = game:GetService("Players")
 local RunService   = game:GetService("RunService")
-local TweenService = game:GetService("TweenService") -- missing in your original!
+local TweenService = game:GetService("TweenService")
 local LocalPlayer  = Players.LocalPlayer
 
 getgenv().CoinFarmEnabled = true
 getgenv().TweenSpeed      = 23
+
+-- NEW: List of keywords to look for
+local KEYWORDS = {"coin", "gold", "token", "gem"}
+
+-- Helper function to check for keywords
+local function isTarget(name)
+    local lowerName = string.lower(name)
+    for _, word in ipairs(KEYWORDS) do
+        if string.find(lowerName, word) then
+            return true
+        end
+    end
+    return false
+end
 
 -- Noclip handler
 RunService.Stepped:Connect(function()
@@ -35,19 +49,19 @@ local function tweenTo(targetCFrame)
     tween.Completed:Wait()
 end
 
--- Coin farm loop
+-- Farm loop
 task.spawn(function()
     while true do
         task.wait(0.1)
         if getgenv().CoinFarmEnabled then
             pcall(function()
                 for _, v in pairs(workspace:GetDescendants()) do
-                    if getgenv().CoinFarmEnabled
-                        and v.Name == "Coin"
-                        and v:IsA("BasePart")
-                        and v.Parent -- coin still exists
+                    if getgenv().CoinFarmEnabled 
+                        and v:IsA("BasePart") 
+                        and isTarget(v.Name) -- Checks for all keywords
+                        and v.Parent 
                     then
-                        tweenTo(v.CFrame) -- go directly to coin, not above it
+                        tweenTo(v.CFrame)
                         task.wait(0.1)
                     end
                 end
