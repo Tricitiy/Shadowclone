@@ -1,6 +1,7 @@
 -- [[ SETTINGS ]] --
-local tween_speed = 20; -- Added this so the script doesn't error
-local KEYWORDS = {"coin", "gold", "token", "gem"}; -- Your keywords
+local tween_speed = 20; 
+local max_distance = 300; -- THE LIMIT
+local KEYWORDS = {"coin", "gold", "token", "gem"};
 
 local map;
 local coins;
@@ -10,7 +11,6 @@ local players = game:GetService("Players");
 local localplayer = players.LocalPlayer;
 
 local camera = workspace.CurrentCamera;
-local screen_size = camera.ViewportSize;
 
 function draw(type)
     local new_draw = Drawing.new(type);
@@ -23,7 +23,6 @@ function is_valid(obj)
     return obj and obj.Parent ~= nil;
 end;
 
--- Check if name matches keywords
 local function matches_keywords(name)
     local ln = string.lower(name)
     for _, kw in ipairs(KEYWORDS) do
@@ -32,27 +31,24 @@ local function matches_keywords(name)
     return false
 end
 
-function magnitude(point1, point2)
-    return (point1 - point2).Magnitude
-end;
-
 function get_closest_coin()
     local closest_coin = nil;
-    local closest_distance = math.huge;
+    local closest_distance = max_distance; -- Start at 300 so anything further is ignored
 
     local character = localplayer.Character;
     if not character or not character:FindFirstChild("HumanoidRootPart") then return nil, closest_distance end;
 
-    local humanoidrootpart = character.HumanoidRootPart;
+    local rootPos = character.HumanoidRootPart.Position;
     
-    -- Optimized search: looks through map for keywords
     if is_valid(map) then
         for _, obj in next, map:GetDescendants() do
             if obj:IsA("BasePart") and matches_keywords(obj.Name) and obj:FindFirstChild("TouchInterest") then
-                local dist = magnitude(obj.Position, humanoidrootpart.Position);
+                local dist = (obj.Position - rootPos).Magnitude
+                
+                -- Must be closer than current closest AND under 300 studs
                 if dist < closest_distance then
-                    closest_coin = obj;
                     closest_distance = dist;
+                    closest_coin = obj;
                 end;
             end;
         end;
@@ -79,7 +75,7 @@ function tween_position(object, target, duration)
 
         object.Position = start_pos:Lerp(target.Position, alpha)
         object.Velocity = Vector3.new(0, 0, 0);
-        task.wait() -- Added wait to the internal tween loop to prevent freezing
+        task.wait() 
     end;
 
     can_tween = true;
@@ -103,10 +99,9 @@ local status = draw("Text");
 status.Center = true;
 
 function update_auto_farm()
-    screen_size = camera.ViewportSize;
+    local screen_size = camera.ViewportSize;
     status.Position = Vector2.new(screen_size.X / 2, screen_size.Y * 0.2);
 
-    -- Find the map
     for _, v in next, workspace:GetChildren() do
         if v:FindFirstChild("Spawns") and v.Name ~= "Lobby" then
             map = v;
@@ -127,7 +122,7 @@ function update_auto_farm()
             local closest_coin, coin_distance = get_closest_coin();
 
             if is_valid(closest_coin) then
-                status.Text = "Auto Farming: Targeting " .. closest_coin.Name;
+                status.Text = "Auto Farming: " .. closest_coin.Name .. " (" .. math.floor(coin_distance) .. " studs)";
 
                 if (can_tween) then
                     task.spawn(function() 
@@ -135,19 +130,16 @@ function update_auto_farm()
                     end);
                 end;
             else
-                status.Text = "Auto Farm Status: No items found";
+                status.Text = "Status: No items within " .. max_distance .. " studs";
             end;
         else
-            status.Text = "Auto Farm Status: IDLE / Bag Full";
+            status.Text = "Status: IDLE / Bag Full / No Map";
             root.Velocity = Vector3.new(0, 0, 0);
         end;
-    else
-        status.Text = "Auto Farm Status: Waiting for Character";
     end;
 end;
 
--- The fixed main loop
 while true do
     update_auto_farm();
-    task.wait(0.1); -- THIS PREVENTS THE CRASH
+    task.wait(0.1); 
 end;
