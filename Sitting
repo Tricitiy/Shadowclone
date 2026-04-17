@@ -126,39 +126,4 @@ RunService.Heartbeat:Connect(function()
         end
         isTweening = false
     end
-end)end)
-
-local currentTween = nil
-
-local function tweenTo(targetCFrame)
-    local char = LocalPlayer.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    if currentTween then currentTween:Cancel() end
-
-    local d = (root.Position - targetCFrame.Position).Magnitude
-    currentTween = TweenService:Create(
-        root,
-        TweenInfo.new(d / getgenv().TweenSpeed, Enum.EasingStyle.Linear),
-        {CFrame = targetCFrame}
-    )
-    currentTween:Play()
-end
-
--- Initial scan
-refreshCache()
-
--- Slightly better loop
-task.spawn(function()
-    while true do
-        task.wait(0.1)
-        if getgenv().CoinFarmEnabled then
-            local target = getClosestTarget()
-            if target and target.Parent then  -- double-check still exists
-                pcall(tweenTo, target.CFrame)
-            end
-        end
-    end
 end)
