@@ -1,5 +1,5 @@
 -- [[ SETTINGS ]] --
-local tween_speed = 20; 
+local tween_speed = 25; 
 local max_distance = 300; -- THE LIMIT
 local KEYWORDS = {"coin", "gold", "token", "gem"};
 
