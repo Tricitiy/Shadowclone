@@ -2,6 +2,7 @@
 local map;
 local coins;
 local last_coin;
+local tween_speed = 25 -- Define the speed
 
 local players = game:GetService("Players");
 local localplayer = players.LocalPlayer;
@@ -153,5 +154,6 @@ function update_auto_farm()
 end;
 
 while true do
-    update_auto_farm();
-end;
+    task.wait(0.1) -- Gives the script room to breathe
+    update_auto_farm()
+end
