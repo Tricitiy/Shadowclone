@@ -7,10 +7,10 @@ getgenv().CoinFarmEnabled = true
 getgenv().TweenSpeed      = 23
 getgenv().MaxDistance     = 300
 
-local KEYWORDS = {"coin", "gold", "token", "gem"}
-local ItemCache = {}
+local KEYWORDS   = {"coin", "gold", "token", "gem"}
+local ItemCache  = {}
+local isTweening = false
 
--- 1. Optimized Name Check
 local function isTarget(name)
     local ln = name:lower()
     for _, kw in ipairs(KEYWORDS) do
@@ -19,10 +19,8 @@ local function isTarget(name)
     return false
 end
 
--- 2. Fast Cache Refresh (Only runs when necessary)
 local function refreshCache()
     local newCache = {}
-    -- This is still a heavy check, so we only do it once or when the farm starts
     for _, v in ipairs(workspace:GetDescendants()) do
         if v:IsA("BasePart") and isTarget(v.Name) then
             table.insert(newCache, v)
@@ -31,28 +29,22 @@ local function refreshCache()
     ItemCache = newCache
 end
 
--- 3. Dynamic Cache Update (Watches for new spawns)
 workspace.DescendantAdded:Connect(function(v)
     if v:IsA("BasePart") and isTarget(v.Name) then
         table.insert(ItemCache, v)
     end
 end)
 
--- 4. The Distance Logic (The optimized part)
 local function getClosestTarget()
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return nil end
-    
-    local rootPos = root.Position
-    local closest = nil
-    local dist = getgenv().MaxDistance
 
-    -- Loop through our pre-filtered table (very fast)
+    local rootPos = root.Position
+    local closest, dist = nil, getgenv().MaxDistance
+
     for i = #ItemCache, 1, -1 do
         local item = ItemCache[i]
-        
-        -- If item was deleted/collected, remove from cache and skip
         if not item or not item.Parent then
             table.remove(ItemCache, i)
         else
@@ -66,7 +58,7 @@ local function getClosestTarget()
     return closest
 end
 
--- noclip
+-- Noclip
 LocalPlayer.CharacterAdded:Connect(function(char)
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then part.CanCollide = false end
@@ -75,6 +67,66 @@ LocalPlayer.CharacterAdded:Connect(function(char)
         if part:IsA("BasePart") then part.CanCollide = false end
     end)
 end)
+
+local currentTween = nil
+
+local function tweenTo(targetCFrame)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil
+    end
+
+    local d = (root.Position - targetCFrame.Position).Magnitude
+    if d < 1 then return end -- already there, skip
+
+    isTweening = true
+    currentTween = TweenService:Create(
+        root,
+        TweenInfo.new(d / getgenv().TweenSpeed, Enum.EasingStyle.Linear),
+        {CFrame = targetCFrame}
+    )
+
+    -- As soon as tween completes, immediately flag ready for next coin
+    currentTween.Completed:Connect(function(state)
+        isTweening = false
+    end)
+
+    currentTween:Play()
+end
+
+refreshCache()
+
+-- Main loop
+task.spawn(function()
+    while true do
+        task.wait(0.05) -- tighter loop = faster response
+        if getgenv().CoinFarmEnabled and not isTweening then
+            local target = getClosestTarget()
+            if target and target.Parent then
+                pcall(tweenTo, target.CFrame)
+            end
+        end
+    end
+end)
+
+-- Watchdog: if coin disappears mid-tween, cancel and move on immediately
+RunService.Heartbeat:Connect(function()
+    if not getgenv().CoinFarmEnabled then return end
+    if not isTweening then return end
+    local target = getClosestTarget()
+    if not target then
+        if currentTween then
+            currentTween:Cancel()
+            currentTween = nil
+        end
+        isTweening = false
+    end
+end)end)
 
 local currentTween = nil
 
