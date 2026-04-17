@@ -1,143 +1,157 @@
-local Players      = game:GetService("Players")
-local RunService   = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local LocalPlayer  = Players.LocalPlayer
+-- [[ CODE ]] --
+local map;
+local coins;
+local last_coin;
 
-getgenv().CoinFarmEnabled = true
-getgenv().TweenSpeed      = 25
-getgenv().MaxDistance     = 300
+local players = game:GetService("Players");
+local localplayer = players.LocalPlayer;
 
-local KEYWORDS  = {"coin", "gold", "token", "gem"}
-local ItemCache = {}
-local isTweening = false
+local camera = workspace.CurrentCamera;
+local screen_size = camera.ViewportSize;
 
-local function isTarget(name)
-    local ln = name:lower()
-    for _, kw in ipairs(KEYWORDS) do
-        if ln:find(kw) then return true end
-    end
-    return false
-end
+function draw(type)
+    local new_draw = Drawing.new(type);
+    new_draw.Transparency = 1;
+    new_draw.Visible = true;
 
--- Only called once on start
-local function refreshCache()
-    ItemCache = {}
-    for _, v in ipairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") and isTarget(v.Name) then
-            table.insert(ItemCache, v)
-        end
-    end
-end
+    return new_draw;
+end;
 
--- Live additions
-workspace.DescendantAdded:Connect(function(v)
-    if v:IsA("BasePart") and isTarget(v.Name) then
-        table.insert(ItemCache, v)
-    end
-end)
+function is_valid(obj)
+    return obj and obj.Parent ~= nil;
+end;
 
--- Live removals — this is what kills the delay
-workspace.DescendantRemoving:Connect(function(v)
-    if v:IsA("BasePart") and isTarget(v.Name) then
-        for i, item in ipairs(ItemCache) do
-            if item == v then
-                table.remove(ItemCache, i)
-                break
-            end
-        end
-    end
-end)
+function magnitude(point1, point2)
+    local dx = point2.X - point1.X;
+    local dy = point2.Y - point1.Y;
+    local dz = point2.Z - point1.Z;
+    return math.sqrt(dx*dx + dy*dy + dz*dz);
+end;
 
-local function getClosestTarget()
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return nil end
+function get_closest_coin()
+    local closest_coin = nil;
+    local closest_distance = math.huge;
 
-    local rootPos = root.Position
-    local closest, closestDist = nil, getgenv().MaxDistance
+    local character = localplayer.Character;
+    if not character then return nil, closest_distance end;
 
-    for i = #ItemCache, 1, -1 do
-        local item = ItemCache[i]
-        if not item or not item.Parent then
-            table.remove(ItemCache, i)
+    local humanoidrootpart = character:FindFirstChild("HumanoidRootPart");
+    if not humanoidrootpart then return nil, closest_distance end;
+
+    local coin_container = map:FindFirstChild("CoinContainer");
+    if not coin_container then return nil, closest_distance end; 
+
+    for _, coin in next, coin_container:GetChildren() do
+        if is_valid(coin) and coin:FindFirstChild("TouchInterest") and coin:FindFirstChild("CoinVisual") then
+            local coin_distance = magnitude(coin.Position, humanoidrootpart.Position);
+            if coin_distance < closest_distance then
+                closest_coin = coin;
+                closest_distance = coin_distance;
+            end;
+        end;
+    end;
+
+    return closest_coin, closest_distance;
+end;
+
+local can_tween = true;
+
+function tween_position(object, target, duration)
+    local start_time = os.clock();
+    local start_pos = object.Position;
+    local end_time = start_time + duration;
+    can_tween = false;
+
+    while os.clock() < end_time do
+        if (not is_valid(object)) or (not is_valid(target) or (not is_valid(map))) then
+            break;
+        end;
+
+        local alpha = (os.clock() - start_time) / duration;
+        if alpha > 1 then alpha = 1 end;
+
+        local tx, ty, tz = target.Position.X, target.Position.Y, target.Position.Z;
+        local sx, sy, sz = start_pos.X, start_pos.Y, start_pos.Z;
+
+        object.Position = Vector3.new(
+            sx + (tx - sx) * alpha,
+            sy + (ty - sy) * alpha,
+            sz + (tz - sz) * alpha
+        );
+        object.Velocity = Vector3.new(0, 0, 0);
+    end;
+
+    can_tween = true;
+    object.Position = target.Position;
+end;
+
+function set_noclip()
+    local character = localplayer.Character;
+    if character then
+        for i, v in next, character:GetChildren() do
+            if v:IsA("Part") or v:IsA("MeshPart") or v:IsA("BasePart") then
+                v.CanCollide = false;
+            end;
+        end;
+    end;
+end;
+
+local status = draw("Text");
+status.Center = true;
+
+function update_auto_farm()
+    screen_size = camera.ViewportSize;
+    status.Position = Vector2.new(screen_size.X / 2, screen_size.X * 0.2);
+
+    for _, v in next, workspace:GetChildren() do
+        if v:FindFirstChild("Spawns") and v.Name ~= "Lobby" then
+            map = v;
+        end;
+    end;
+
+    set_noclip();
+
+    pcall(function() 
+        coins = localplayer.PlayerGui.MainGUI.Game.CoinBags.Container.Candy.CurrencyFrame.Icon.Coins
+    end);
+
+    local character = localplayer.Character;
+    if character then
+        local humanoidrootpart = character:FindFirstChild("HumanoidRootPart");
+        if humanoidrootpart then
+            if (is_valid(map)) and coins.Text ~= "50" then
+                local closest_coin, coin_distance = get_closest_coin();
+
+                if is_valid(closest_coin) then
+                    last_coin = closest_coin;
+                    humanoidrootpart.Velocity = Vector3.new(0, 0, 0);
+                    status.Text = "Auto Farming Status: Currently " .. coins.Text .. " Coins";
+
+                    if (can_tween) then
+                        spawn(function() 
+                            tween_position(humanoidrootpart, closest_coin, coin_distance / tween_speed); 
+                        end);
+                    end;
+                end;
+            else
+                if (coins.Text == "40") then
+                    status.Text = "Auto Farm Status: Coin Full";
+                else
+                    status.Text = "Auto Farm Status: IDLE";
+                end;
+
+                humanoidrootpart.Velocity = Vector3.new(0, 0, 0);
+                -- tween_position(humanoidrootpart, game.Workspace.Lobby.Map.zombieking.HumanoidRootPart, tween_duration);
+                humanoidrootpart.Position = Vector3.new(-4981.51, 308.51, 3.79);
+            end;
         else
-            local d = (item.Position - rootPos).Magnitude
-            if d < closestDist then
-                closestDist = d
-                closest = item
-            end
-        end
-    end
-    return closest
-end
+            status.Text = "Auto Farm Status: Can't find RootPart";
+        end;
+    else
+        status.Text = "Auto Farm Status: Can't find Character";
+    end;
+end;
 
--- Noclip
-LocalPlayer.CharacterAdded:Connect(function(char)
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then part.CanCollide = false end
-    end
-    char.DescendantAdded:Connect(function(part)
-        if part:IsA("BasePart") then part.CanCollide = false end
-    end)
-end)
-
-local currentTween = nil
-
-local function tweenTo(targetCFrame)
-    local char = LocalPlayer.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    if currentTween then
-        currentTween:Cancel()
-        currentTween = nil
-    end
-
-    local d = (root.Position - targetCFrame.Position).Magnitude
-    if d < 1 then
-        isTweening = false
-        return
-    end
-
-    isTweening = true
-    currentTween = TweenService:Create(
-        root,
-        TweenInfo.new(d / getgenv().TweenSpeed, Enum.EasingStyle.Linear),
-        {CFrame = targetCFrame}
-    )
-
-    currentTween.Completed:Connect(function()
-        isTweening = false
-    end)
-
-    currentTween:Play()
-end
-
--- Initial scan
-refreshCache()
-
--- Main loop
-task.spawn(function()
-    while true do
-        task.wait(0.05)
-        if getgenv().CoinFarmEnabled and not isTweening then
-            local target = getClosestTarget()
-            if target and target.Parent then
-                pcall(tweenTo, target.CFrame)
-            end
-        end
-    end
-end)
-
--- Watchdog: coin disappears mid-tween, cancel immediately
-RunService.Heartbeat:Connect(function()
-    if not getgenv().CoinFarmEnabled or not isTweening then return end
-    if not getClosestTarget() then
-        if currentTween then
-            currentTween:Cancel()
-            currentTween = nil
-        end
-        isTweening = false
-    end
-end)
+while true do
+    update_auto_farm();
+end;
