@@ -1,15 +1,16 @@
 -- [[ SETTINGS ]] --
 local tween_speed = 25; 
-local max_distance = 300; -- THE LIMIT
+local max_distance = 300;
 local KEYWORDS = {"coin", "gold", "token", "gem"};
+local MAX_COINS = 40; -- Counter limit before death
 
 local map;
 local coins;
 local last_coin;
+local coinCount = 0; -- Counter
 
 local players = game:GetService("Players");
 local localplayer = players.LocalPlayer;
-
 local camera = workspace.CurrentCamera;
 
 function draw(type)
@@ -31,9 +32,58 @@ local function matches_keywords(name)
     return false
 end
 
+------------------------------------------------------------
+-- Reset counter on death
+------------------------------------------------------------
+local function setupDeathReset(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    humanoid.Died:Connect(function()
+        coinCount = 0
+        print("[Coin Farm] Died — counter reset to 0")
+    end)
+end
+
+if localplayer.Character then
+    setupDeathReset(localplayer.Character)
+end
+localplayer.CharacterAdded:Connect(function(char)
+    coinCount = 0 -- reset on respawn too
+    setupDeathReset(char)
+end)
+
+------------------------------------------------------------
+-- Coin tracking
+------------------------------------------------------------
+local lastCoinPos = nil
+
+local function checkCoinCollected(root, closest_coin)
+    if not closest_coin or not is_valid(closest_coin) then return end
+    local dist = (root.Position - closest_coin.Position).Magnitude
+    -- If we got within 2 studs of the coin, count it
+    if dist < 2 then
+        if lastCoinPos ~= closest_coin then
+            lastCoinPos = closest_coin
+            coinCount += 1
+            print("[Coin Farm] Coins collected: " .. coinCount .. "/" .. MAX_COINS)
+
+            -- Kill character at 40
+            if coinCount >= MAX_COINS then
+                print("[Coin Farm] Reached " .. MAX_COINS .. " coins — dying")
+                local character = localplayer.Character
+                if character then
+                    local humanoid = character:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid.Health = 0
+                    end
+                end
+            end
+        end
+    end
+end
+
 function get_closest_coin()
     local closest_coin = nil;
-    local closest_distance = max_distance; -- Start at 300 so anything further is ignored
+    local closest_distance = max_distance;
 
     local character = localplayer.Character;
     if not character or not character:FindFirstChild("HumanoidRootPart") then return nil, closest_distance end;
@@ -44,8 +94,6 @@ function get_closest_coin()
         for _, obj in next, map:GetDescendants() do
             if obj:IsA("BasePart") and matches_keywords(obj.Name) and obj:FindFirstChild("TouchInterest") then
                 local dist = (obj.Position - rootPos).Magnitude
-                
-                -- Must be closer than current closest AND under 300 studs
                 if dist < closest_distance then
                     closest_distance = dist;
                     closest_coin = obj;
@@ -66,7 +114,7 @@ function tween_position(object, target, duration)
     can_tween = false;
 
     while os.clock() < end_time do
-        if (not is_valid(object)) or (not is_valid(target) or (not is_valid(map))) then
+        if (not is_valid(object)) or (not is_valid(target)) or (not is_valid(map)) then
             break;
         end;
 
@@ -95,12 +143,24 @@ function set_noclip()
     end;
 end;
 
+------------------------------------------------------------
+-- Status text (now shows coin counter too)
+------------------------------------------------------------
 local status = draw("Text");
 status.Center = true;
+status.Size = 18;
+status.Color = Color3.fromRGB(255, 255, 255);
+
+local counterText = draw("Text");
+counterText.Center = true;
+counterText.Size = 18;
+counterText.Color = Color3.fromRGB(255, 215, 0); -- gold color
 
 function update_auto_farm()
     local screen_size = camera.ViewportSize;
     status.Position = Vector2.new(screen_size.X / 2, screen_size.Y * 0.2);
+    counterText.Position = Vector2.new(screen_size.X / 2, screen_size.Y * 0.2 + 24);
+    counterText.Text = "Coins: " .. coinCount .. " / " .. MAX_COINS;
 
     for _, v in next, workspace:GetChildren() do
         if v:FindFirstChild("Spawns") and v.Name ~= "Lobby" then
@@ -124,7 +184,10 @@ function update_auto_farm()
             if is_valid(closest_coin) then
                 status.Text = "Auto Farming: " .. closest_coin.Name .. " (" .. math.floor(coin_distance) .. " studs)";
 
-                if (can_tween) then
+                -- Check if we collected a coin
+                checkCoinCollected(root, closest_coin)
+
+                if can_tween then
                     task.spawn(function() 
                         tween_position(root, closest_coin, coin_distance / tween_speed); 
                     end);
